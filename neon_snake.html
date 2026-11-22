@@ -1,0 +1,2077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Neon Snake</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      touch-action: manipulation;
+      overscroll-behavior: none;
+    }
+    canvas {
+      touch-action: none;
+    }
+    @keyframes neonBorderCycle {
+      0%, 100% {
+        box-shadow:
+          0 0 12px rgba(16, 185, 129, 0.55),
+          0 0 28px rgba(6, 182, 212, 0.35),
+          0 0 48px rgba(236, 72, 153, 0.2),
+          inset 0 0 14px rgba(16, 185, 129, 0.22);
+        border-color: rgba(52, 211, 153, 0.8);
+      }
+      50% {
+        box-shadow:
+          0 0 16px rgba(6, 182, 212, 0.65),
+          0 0 34px rgba(236, 72, 153, 0.4),
+          0 0 56px rgba(16, 185, 129, 0.25),
+          inset 0 0 18px rgba(34, 211, 238, 0.25);
+        border-color: rgba(34, 211, 238, 0.85);
+      }
+    }
+    .neon-board-frame {
+      border: 2px solid rgba(52, 211, 153, 0.8);
+      animation: neonBorderCycle 3.6s ease-in-out infinite;
+    }
+    .neon-shell-glow {
+      box-shadow: 0 0 22px rgba(16, 185, 129, 0.14), 0 0 40px rgba(6, 182, 212, 0.08);
+    }
+    @keyframes boardVibrate {
+      0%   { transform: translate(0, 0) rotate(0deg); }
+      10%  { transform: translate(-7px, -4px) rotate(-0.8deg); }
+      20%  { transform: translate(7px, 4px) rotate(0.8deg); }
+      30%  { transform: translate(-6px, 3px) rotate(-0.6deg); }
+      40%  { transform: translate(6px, -3px) rotate(0.6deg); }
+      50%  { transform: translate(-4px, -2px) rotate(-0.4deg); }
+      60%  { transform: translate(4px, 2px) rotate(0.4deg); }
+      70%  { transform: translate(-3px, 1px) rotate(-0.2deg); }
+      80%  { transform: translate(3px, -1px) rotate(0.2deg); }
+      90%  { transform: translate(-1px, 1px) rotate(0deg); }
+      100% { transform: translate(0, 0) rotate(0deg); }
+    }
+    .board-vibrating {
+      animation: boardVibrate 0.95s cubic-bezier(0.36, 0.07, 0.19, 0.97) both !important;
+      border-color: rgba(244, 63, 94, 0.95) !important;
+      box-shadow:
+        0 0 22px rgba(244, 63, 94, 0.8),
+        0 0 48px rgba(244, 63, 94, 0.45),
+        inset 0 0 24px rgba(244, 63, 94, 0.35) !important;
+    }
+    @keyframes skullPop {
+      0%   { transform: scale(0.25) rotate(-10deg); opacity: 0; }
+      35%  { transform: scale(1.2) rotate(5deg); opacity: 1; }
+      55%  { transform: scale(0.95) rotate(-3deg); opacity: 1; }
+      75%  { transform: scale(1.04) rotate(1deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .skull-pop {
+      animation: skullPop 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-3 sm:p-5 select-none">
+
+  <div class="w-full max-w-xl flex flex-col gap-3">
+    <!-- Header & Scoreboard -->
+    <header class="flex items-center justify-between gap-2 bg-slate-900/90 border border-emerald-500/30 rounded-2xl px-4 py-3 shadow-lg neon-shell-glow">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 17c0-2.5 2-4 4.5-4H15a3.5 3.5 0 0 0 0-7H8" />
+            <circle cx="7" cy="6" r="1.5" fill="currentColor" />
+            <circle cx="19" cy="17" r="2" fill="#f43f5e" stroke="#f43f5e" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold tracking-tight text-white leading-tight">Neon Snake</h1>
+          <button id="gamerIdBtn" type="button" title="Switch Gamer ID & View Achievements" class="mt-0.5 inline-flex items-center gap-1.5 text-[11px] font-semibold text-cyan-300 hover:text-cyan-200 transition">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span>ID: <span id="gamerIdLabel">PLAYER-1</span></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <div class="bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5 text-center min-w-[64px]">
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Score</div>
+          <div id="scoreVal" class="text-base sm:text-lg font-extrabold text-emerald-400 tabular-nums leading-tight">0</div>
+        </div>
+        <div class="bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5 text-center min-w-[60px]">
+          <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Best</div>
+          <div id="bestVal" class="text-base sm:text-lg font-extrabold text-amber-400 tabular-nums leading-tight">0</div>
+        </div>
+        <div class="bg-slate-950/80 border border-pink-500/35 rounded-xl px-2.5 py-1.5 text-center min-w-[50px] shadow-[0_0_12px_rgba(236,72,153,0.18)]">
+          <div class="text-[10px] uppercase tracking-wider text-pink-300/80 font-semibold">Lives</div>
+          <div id="livesVal" class="text-base sm:text-lg font-extrabold text-pink-400 tabular-nums leading-tight">1</div>
+        </div>
+        <div class="bg-slate-950/80 border border-yellow-400/35 rounded-xl px-2.5 py-1.5 text-center min-w-[54px] shadow-[0_0_12px_rgba(250,204,21,0.16)]">
+          <div class="text-[10px] uppercase tracking-wider text-yellow-300/80 font-semibold">Coins</div>
+          <div id="coinsVal" class="text-base sm:text-lg font-extrabold text-yellow-300 tabular-nums leading-tight">0</div>
+        </div>
+        <button id="pauseBtn" type="button" title="Pause / Resume (P or Space)" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 transition disabled:opacity-40 disabled:pointer-events-none" aria-label="Pause or Resume">
+          <svg id="pauseIcon" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16" rx="1" />
+            <rect x="14" y="4" width="4" height="16" rx="1" />
+          </svg>
+          <svg id="playIcon" class="w-4 h-4 hidden" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="6,4 20,12 6,20" />
+          </svg>
+        </button>
+        <button id="muteBtn" type="button" title="Toggle Sound" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 transition" aria-label="Toggle Sound">
+          <svg id="soundOnIcon" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+          </svg>
+          <svg id="soundOffIcon" class="w-4 h-4 hidden text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <line x1="23" y1="9" x2="17" y2="15" />
+            <line x1="17" y1="9" x2="23" y2="15" />
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Game Board Container -->
+    <div class="relative w-full aspect-square max-h-[65vh] mx-auto bg-slate-900 rounded-2xl overflow-hidden flex items-center justify-center neon-board-frame" id="boardContainer">
+      <div class="pointer-events-none absolute top-0 left-0 w-7 h-7 border-t-2 border-l-2 border-cyan-400 rounded-tl-2xl z-20 drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]"></div>
+      <div class="pointer-events-none absolute top-0 right-0 w-7 h-7 border-t-2 border-r-2 border-pink-400 rounded-tr-2xl z-20 drop-shadow-[0_0_8px_rgba(244,114,182,0.9)]"></div>
+      <div class="pointer-events-none absolute bottom-0 left-0 w-7 h-7 border-b-2 border-l-2 border-pink-400 rounded-bl-2xl z-20 drop-shadow-[0_0_8px_rgba(244,114,182,0.9)]"></div>
+      <div class="pointer-events-none absolute bottom-0 right-0 w-7 h-7 border-b-2 border-r-2 border-cyan-400 rounded-br-2xl z-20 drop-shadow-[0_0_8px_rgba(34,211,238,0.9)]"></div>
+      <canvas id="gameCanvas" class="block w-full h-full"></canvas>
+
+      <!-- Crash Skull Pop-up Overlay -->
+      <div id="crashOverlay" class="hidden pointer-events-none absolute inset-0 bg-rose-950/35 backdrop-blur-[1px] flex flex-col items-center justify-center z-20">
+        <div id="skullPopup" class="flex flex-col items-center">
+          <div class="w-24 h-24 rounded-full bg-rose-500/20 border-2 border-rose-400/70 flex items-center justify-center shadow-[0_0_32px_rgba(244,63,94,0.85)]">
+            <svg class="w-14 h-14 text-rose-400 drop-shadow-[0_0_12px_rgba(244,63,94,0.95)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a8 8 0 0 0-8 8c0 2.7 1.3 5.1 3.3 6.5.4.3.7.8.7 1.3V20a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.2c0-.5.3-1 .7-1.3A8 8 0 0 0 20 10a8 8 0 0 0-8-8Z" fill="rgba(244,63,94,0.22)" />
+              <circle cx="9" cy="10.5" r="1.4" fill="currentColor" />
+              <circle cx="15" cy="10.5" r="1.4" fill="currentColor" />
+              <path d="M10.5 15.5v-1.5M12 15.5v-1.5M13.5 15.5v-1.5" />
+            </svg>
+          </div>
+          <span class="mt-2.5 text-sm font-extrabold uppercase tracking-widest text-rose-300 drop-shadow-[0_0_8px_rgba(244,63,94,0.9)]">CRASH!</span>
+        </div>
+      </div>
+
+      <!-- Start Overlay -->
+      <div id="startOverlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-5 text-center z-10">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mb-2 text-emerald-400">
+          <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 17c0-2.5 2-4 4.5-4H15a3.5 3.5 0 0 0 0-7H8" />
+            <circle cx="7" cy="6" r="1.5" fill="currentColor" />
+            <circle cx="19" cy="17" r="2" fill="#f43f5e" stroke="#f43f5e" />
+          </svg>
+        </div>
+        <h2 class="text-2xl font-extrabold text-white tracking-tight mb-1">Ready to Play?</h2>
+        <p class="text-xs text-slate-400 mb-3.5 max-w-xs">Eat apples, catch golden stars (+50), and grab neon hearts every 200 pts for an extra life.</p>
+
+        <div class="w-full max-w-xs space-y-2.5 mb-4 text-left">
+          <div>
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Speed</div>
+            <div class="grid grid-cols-3 gap-1.5" id="speedSelector">
+              <button type="button" data-speed="chill" class="speed-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition">Chill</button>
+              <button type="button" data-speed="normal" class="speed-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-emerald-500 bg-emerald-500/20 text-emerald-300 transition">Normal</button>
+              <button type="button" data-speed="fast" class="speed-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition">Fast</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Walls</div>
+            <div class="grid grid-cols-2 gap-1.5" id="wallSelector">
+              <button type="button" data-walls="solid" class="wall-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-emerald-500 bg-emerald-500/20 text-emerald-300 transition">Classic (Solid)</button>
+              <button type="button" data-walls="wrap" class="wall-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition">Wrap-Around</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Hurdles</div>
+            <div class="grid grid-cols-2 gap-1.5" id="hurdleSelector">
+              <button type="button" data-hurdle="none" class="hurdle-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-emerald-500 bg-emerald-500/20 text-emerald-300 transition">None</button>
+              <button type="button" data-hurdle="hard" class="hurdle-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition">Hard Mode</button>
+            </div>
+            <div id="hardLevelPicker" class="hidden grid grid-cols-5 gap-1 mt-1.5">
+              <button type="button" data-level="1" class="hard-lvl-opt py-1 rounded-md text-[11px] font-bold border border-rose-500 bg-rose-500/25 text-rose-200 transition">Lvl 1</button>
+              <button type="button" data-level="2" class="hard-lvl-opt py-1 rounded-md text-[11px] font-bold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition">Lvl 2</button>
+              <button type="button" data-level="3" class="hard-lvl-opt py-1 rounded-md text-[11px] font-bold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition">Lvl 3</button>
+              <button type="button" data-level="4" class="hard-lvl-opt py-1 rounded-md text-[11px] font-bold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition">Lvl 4</button>
+              <button type="button" data-level="5" class="hard-lvl-opt py-1 rounded-md text-[11px] font-bold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition">Lvl 5</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="w-full max-w-xs flex gap-2">
+          <button id="startBtn" type="button" class="flex-1 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-bold text-sm sm:text-base shadow-lg shadow-emerald-500/25 transition">
+            Start Game
+          </button>
+          <button id="openShopBtn" type="button" class="py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-yellow-300 font-bold text-xs sm:text-sm border border-yellow-400/40 shadow-[0_0_14px_rgba(250,204,21,0.15)] transition">
+            Snakes
+          </button>
+          <button id="startProfileBtn" type="button" class="py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-cyan-300 font-bold text-xs sm:text-sm border border-cyan-400/40 transition">
+            ID
+          </button>
+        </div>
+        <p class="mt-2.5 text-[11px] text-slate-400">Active: <span id="activeSkinLabel" class="text-emerald-300 font-semibold">Emerald Classic</span></p>
+      </div>
+
+      <!-- Pause Overlay -->
+      <div id="pauseOverlay" class="hidden absolute inset-0 bg-slate-950/75 backdrop-blur-sm flex flex-col items-center justify-center p-5 text-center z-10">
+        <h2 class="text-2xl font-extrabold text-white mb-1">Paused</h2>
+        <p class="text-xs sm:text-sm text-slate-400 mb-5">Press Space or P to continue</p>
+        <div class="flex gap-2.5">
+          <button id="resumeBtn" type="button" class="py-2.5 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 font-bold text-sm transition">
+            Resume
+          </button>
+          <button id="pauseRestartBtn" type="button" class="py-2.5 px-5 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-semibold text-sm border border-slate-700 transition">
+            Restart
+          </button>
+        </div>
+      </div>
+
+      <!-- Game Over Overlay -->
+      <div id="gameOverOverlay" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center p-5 text-center z-10">
+        <div id="newBestBadge" class="hidden mb-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-xs font-bold uppercase tracking-wider">
+          New High Score!
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-white mb-1">Game Over</h2>
+        <p id="deathReason" class="text-xs sm:text-sm text-rose-400 mb-4">You hit the wall.</p>
+
+        <div class="flex items-center justify-center gap-4 mb-5 bg-slate-900/90 border border-slate-800 rounded-2xl px-6 py-3">
+          <div>
+            <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Final Score</div>
+            <div id="finalScoreVal" class="text-2xl font-extrabold text-emerald-400 tabular-nums">0</div>
+          </div>
+          <div class="w-px h-8 bg-slate-800"></div>
+          <div>
+            <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Length</div>
+            <div id="finalLengthVal" class="text-2xl font-extrabold text-slate-200 tabular-nums">3</div>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2.5 w-full max-w-xs">
+          <button id="playAgainBtn" type="button" class="flex-1 py-3 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-bold text-sm shadow-lg shadow-emerald-500/25 transition">
+            Play Again
+          </button>
+          <button id="changeModeBtn" type="button" class="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-slate-200 font-semibold text-sm border border-slate-700 transition">
+            Settings
+          </button>
+          <button id="gameOverShopBtn" type="button" class="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-yellow-300 font-bold text-sm border border-yellow-400/40 transition">
+            Snakes
+          </button>
+        </div>
+      </div>
+
+      <!-- Achievement Unlock Toast -->
+      <div id="achToast" class="hidden pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 z-40 px-3.5 py-2 rounded-xl bg-slate-900/95 border border-amber-400/60 shadow-[0_0_20px_rgba(251,191,36,0.35)] flex items-center gap-2">
+        <span class="text-amber-300 text-sm">★</span>
+        <div class="text-left">
+          <div class="text-[10px] uppercase tracking-wider font-bold text-amber-300 leading-none">Achievement Unlocked</div>
+          <div id="achToastTitle" class="text-xs font-bold text-white leading-tight mt-0.5">First Bite</div>
+        </div>
+      </div>
+
+      <!-- Gamer ID Profile & Achievements Overlay -->
+      <div id="profileOverlay" class="hidden absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col p-4 sm:p-5 z-30">
+        <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-800">
+          <div>
+            <h2 class="text-lg sm:text-xl font-extrabold text-white leading-tight">Gamer Profile</h2>
+            <p class="text-[11px] text-slate-400">Login with a Gamer ID to save snakes, coins & achievements</p>
+          </div>
+          <button id="closeProfileBtn" type="button" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition">
+            Back
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto py-3 space-y-4 pr-1">
+          <!-- Login / Create Gamer ID -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 space-y-2">
+            <label for="gamerIdInput" class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">Login or Create Gamer ID</label>
+            <div class="flex gap-2">
+              <input id="gamerIdInput" type="text" maxlength="16" placeholder="e.g. NEO-99" class="flex-1 min-w-0 px-3 py-2 rounded-lg bg-slate-950 border border-slate-700 focus:border-cyan-400 focus:outline-none text-xs sm:text-sm font-bold text-white uppercase tracking-wider" />
+              <button id="loginGamerBtn" type="button" class="px-3.5 py-2 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-slate-950 text-xs font-extrabold transition shrink-0">
+                Load / Create
+              </button>
+            </div>
+            <p id="profileMsg" class="hidden text-[11px] text-emerald-400 font-medium"></p>
+          </div>
+
+          <!-- Saved Gamer IDs -->
+          <div>
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Saved Gamer IDs</div>
+            <div id="savedProfilesList" class="flex flex-wrap gap-1.5"></div>
+          </div>
+
+          <!-- Achievements -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Achievements</div>
+              <div id="achCountLabel" class="text-[11px] font-bold text-amber-300">0 / 8</div>
+            </div>
+            <div id="achievementsList" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+          </div>
+
+          <!-- Backup / Restore JSON -->
+          <div class="bg-slate-900/70 border border-slate-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
+            <span class="text-[11px] text-slate-400">Transfer profile data via JSON</span>
+            <div class="flex gap-2">
+              <button id="exportProfileBtn" type="button" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold border border-slate-700 transition">Copy Backup</button>
+              <button id="importToggleBtn" type="button" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-semibold border border-slate-700 transition">Import</button>
+            </div>
+            <div id="importBox" class="hidden w-full pt-2 space-y-2">
+              <textarea id="importJsonInput" rows="2" placeholder="Paste exported profile JSON here..." class="w-full p-2 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-slate-200 focus:outline-none focus:border-cyan-400"></textarea>
+              <button id="confirmImportBtn" type="button" class="w-full py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition">Restore Profile</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Snake Characters Shop Overlay -->
+      <div id="shopOverlay" class="hidden absolute inset-0 bg-slate-950/92 backdrop-blur-md flex flex-col p-4 sm:p-5 z-30">
+        <div class="flex items-center justify-between gap-2 pb-3 border-b border-slate-800">
+          <div>
+            <h2 class="text-lg sm:text-xl font-extrabold text-white leading-tight">Snake Characters</h2>
+            <p class="text-[11px] text-slate-400">Unlock special abilities with coins</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="px-2.5 py-1 rounded-lg bg-yellow-400/15 border border-yellow-400/40 text-yellow-300 text-xs font-extrabold tabular-nums">
+              <span id="shopCoinsVal">0</span> Coins
+            </div>
+            <button id="closeShopBtn" type="button" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition">
+              Back
+            </button>
+          </div>
+        </div>
+        <div id="shopList" class="flex-1 overflow-y-auto py-3 space-y-2.5 pr-1"></div>
+      </div>
+    </div>
+
+    <!-- Bottom Controls: Status + Touch D-Pad -->
+    <div class="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/75 border border-cyan-500/25 rounded-2xl px-4 py-3 neon-shell-glow">
+      <div class="flex items-center gap-3 text-xs text-slate-400">
+        <span>Length: <strong id="lengthVal" class="text-slate-200 tabular-nums">3</strong></span>
+        <span class="text-slate-700">•</span>
+        <span>Mode: <strong id="modeLabel" class="text-slate-200">Normal · Solid</strong></span>
+      </div>
+
+      <!-- On-screen D-pad for touch / mouse -->
+      <div class="grid grid-cols-3 gap-1.5 w-36 sm:w-32" aria-label="Directional Controls">
+        <div></div>
+        <button type="button" data-dir="UP" class="dpad-btn h-10 sm:h-9 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-emerald-500 active:text-slate-950 border border-slate-700 flex items-center justify-center text-slate-200 transition" aria-label="Move Up">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+        </button>
+        <div></div>
+        <button type="button" data-dir="LEFT" class="dpad-btn h-10 sm:h-9 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-emerald-500 active:text-slate-950 border border-slate-700 flex items-center justify-center text-slate-200 transition" aria-label="Move Left">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+        </button>
+        <button type="button" data-dir="DOWN" class="dpad-btn h-10 sm:h-9 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-emerald-500 active:text-slate-950 border border-slate-700 flex items-center justify-center text-slate-200 transition" aria-label="Move Down">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+        </button>
+        <button type="button" data-dir="RIGHT" class="dpad-btn h-10 sm:h-9 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-emerald-500 active:text-slate-950 border border-slate-700 flex items-center justify-center text-slate-200 transition" aria-label="Move Right">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const GRID_SIZE = 20;
+      const PROFILES_KEY = 'neon_snake_profiles_v1';
+      const ACTIVE_ID_KEY = 'neon_snake_active_id_v1';
+      const LEGACY_BEST_KEY = 'neon_snake_best_v1';
+      const LEGACY_COINS_KEY = 'neon_snake_coins_v1';
+      const LEGACY_UNLOCKED_KEY = 'neon_snake_unlocked_v1';
+      const LEGACY_EQUIPPED_KEY = 'neon_snake_equipped_v1';
+
+      const ACHIEVEMENTS = [
+        { id: 'first_bite', title: 'First Bite', desc: 'Eat your first apple.' },
+        { id: 'century', title: 'Century Club', desc: 'Score 100+ points in a run.' },
+        { id: 'high_roller', title: 'High Roller', desc: 'Score 300+ points in a run.' },
+        { id: 'coin_hunter', title: 'Coin Hunter', desc: 'Collect 50 total coins.' },
+        { id: 'star_catcher', title: 'Star Catcher', desc: 'Catch 3 golden stars.' },
+        { id: 'second_wind', title: 'Second Wind', desc: 'Survive using an extra life.' },
+        { id: 'collector', title: 'Snake Collector', desc: 'Purchase a new snake character.' },
+        { id: 'full_squad', title: 'Full Squad', desc: 'Unlock all 12 snake characters.' }
+      ];
+      const SPEED_MS = { chill: 145, normal: 105, fast: 72 };
+      const MIN_STEP_MS = 52;
+
+      function buildHardLevel(lvl) {
+        const cells = [];
+        const addRect = (x1, y1, x2, y2) => {
+          for (let x = x1; x <= x2; x++) {
+            for (let y = y1; y <= y2; y++) {
+              cells.push({ x, y });
+            }
+          }
+        };
+        if (lvl >= 1) {
+          addRect(3, 3, 5, 3);
+          addRect(14, 3, 16, 3);
+          addRect(3, 16, 5, 16);
+          addRect(14, 16, 16, 16);
+        }
+        if (lvl >= 2) {
+          addRect(9, 4, 10, 6);
+          addRect(9, 13, 10, 15);
+        }
+        if (lvl >= 3) {
+          addRect(3, 5, 3, 7);
+          addRect(16, 5, 16, 7);
+          addRect(3, 12, 3, 14);
+          addRect(16, 12, 16, 14);
+        }
+        if (lvl >= 4) {
+          addRect(6, 7, 7, 7);
+          addRect(12, 7, 13, 7);
+          addRect(6, 12, 7, 12);
+          addRect(12, 12, 13, 12);
+        }
+        if (lvl >= 5) {
+          addRect(12, 9, 13, 10);
+          addRect(0, 9, 1, 9);
+          addRect(18, 10, 19, 10);
+        }
+        return cells;
+      }
+
+      const SNAKE_SKINS = [
+        {
+          id: 'emerald',
+          name: 'Emerald Classic',
+          price: 0,
+          colors: ['#34d399', '#10b981'],
+          perk: 'Balanced classic neon runner.'
+        },
+        {
+          id: 'bumblebee',
+          name: 'Bumblebee Striker',
+          price: 500,
+          colors: ['#facc15', '#18181b'],
+          perk: 'Yellow & Black · 1.5x Coins on every coin pickup!'
+        },
+        {
+          id: 'frost',
+          name: 'Frostbite Viper',
+          price: 600,
+          colors: ['#e0f2fe', '#38bdf8'],
+          perk: 'Ice Blue & White · Moves 15% slower for tighter control!'
+        },
+        {
+          id: 'magnet',
+          name: 'Cyber Magnet',
+          price: 750,
+          colors: ['#38bdf8', '#22c55e'],
+          perk: 'Blue & Green · Pulls stars in your head\'s row or column!'
+        },
+        {
+          id: 'coin_magnet',
+          name: 'Golden Midas',
+          price: 900,
+          colors: ['#fbbf24', '#b45309'],
+          perk: 'Gold & Bronze · Pulls nearby coins within 2 cells!'
+        },
+        {
+          id: 'crimson',
+          name: 'Crimson Phantom',
+          price: 1000,
+          colors: ['#f43f5e', '#a855f7'],
+          perk: 'Red & Violet · +15 pts per apple & 50% longer bonus timers!'
+        },
+        {
+          id: 'shadow',
+          name: 'Shadow Ghost',
+          price: 1100,
+          colors: ['#818cf8', '#1e293b'],
+          perk: 'Indigo & Slate · 3.5s shield after extra life or level-up!'
+        },
+        {
+          id: 'viper',
+          name: 'Toxic Viper',
+          price: 1200,
+          colors: ['#a3e635', '#7e22ce'],
+          perk: 'Lime & Purple · Golden stars give +80 pts instead of +50!'
+        },
+        {
+          id: 'solar',
+          name: 'Solar Flare',
+          price: 1300,
+          colors: ['#fb923c', '#facc15'],
+          perk: 'Orange & Amber · 2x Coins on every coin pickup!'
+        },
+        {
+          id: 'cyber_pink',
+          name: 'Neon Kitsune',
+          price: 1400,
+          colors: ['#f472b6', '#22d3ee'],
+          perk: 'Pink & Cyan · Extra-life hearts spawn every 150 pts!'
+        },
+        {
+          id: 'prism',
+          name: 'Prism Overlord',
+          price: 1500,
+          colors: ['#f472b6', '#facc15'],
+          perk: 'Rainbow Neon · Starts with 2 Lives & 1.25x Coins!'
+        },
+        {
+          id: 'obsidian',
+          name: 'Obsidian Titan',
+          price: 1800,
+          colors: ['#0f172a', '#22d3ee'],
+          perk: 'Obsidian & Cyan · Starts with 2 Lives, +15 apple & 1.5x Coins!'
+        }
+      ];
+
+      const DIRS = {
+        UP: { x: 0, y: -1 },
+        DOWN: { x: 0, y: 1 },
+        LEFT: { x: -1, y: 0 },
+        RIGHT: { x: 1, y: 0 }
+      };
+
+      const OPPOSITE = {
+        UP: 'DOWN',
+        DOWN: 'UP',
+        LEFT: 'RIGHT',
+        RIGHT: 'LEFT'
+      };
+
+      // DOM elements
+      const canvas = document.getElementById('gameCanvas');
+      const ctx = canvas.getContext('2d');
+      const boardContainer = document.getElementById('boardContainer');
+      const scoreVal = document.getElementById('scoreVal');
+      const bestVal = document.getElementById('bestVal');
+      const livesVal = document.getElementById('livesVal');
+      const coinsVal = document.getElementById('coinsVal');
+      const lengthVal = document.getElementById('lengthVal');
+      const modeLabel = document.getElementById('modeLabel');
+
+      const startOverlay = document.getElementById('startOverlay');
+      const hardLevelPicker = document.getElementById('hardLevelPicker');
+      const pauseOverlay = document.getElementById('pauseOverlay');
+      const gameOverOverlay = document.getElementById('gameOverOverlay');
+      const crashOverlay = document.getElementById('crashOverlay');
+      const skullPopup = document.getElementById('skullPopup');
+      const newBestBadge = document.getElementById('newBestBadge');
+      const deathReason = document.getElementById('deathReason');
+      const finalScoreVal = document.getElementById('finalScoreVal');
+      const finalLengthVal = document.getElementById('finalLengthVal');
+
+      const pauseBtn = document.getElementById('pauseBtn');
+      const pauseIcon = document.getElementById('pauseIcon');
+      const playIcon = document.getElementById('playIcon');
+      const muteBtn = document.getElementById('muteBtn');
+      const soundOnIcon = document.getElementById('soundOnIcon');
+      const soundOffIcon = document.getElementById('soundOffIcon');
+
+      const startBtn = document.getElementById('startBtn');
+      const openShopBtn = document.getElementById('openShopBtn');
+      const startProfileBtn = document.getElementById('startProfileBtn');
+      const gamerIdBtn = document.getElementById('gamerIdBtn');
+      const gamerIdLabel = document.getElementById('gamerIdLabel');
+      const profileOverlay = document.getElementById('profileOverlay');
+      const closeProfileBtn = document.getElementById('closeProfileBtn');
+      const gamerIdInput = document.getElementById('gamerIdInput');
+      const loginGamerBtn = document.getElementById('loginGamerBtn');
+      const profileMsg = document.getElementById('profileMsg');
+      const savedProfilesList = document.getElementById('savedProfilesList');
+      const achievementsList = document.getElementById('achievementsList');
+      const achCountLabel = document.getElementById('achCountLabel');
+      const exportProfileBtn = document.getElementById('exportProfileBtn');
+      const importToggleBtn = document.getElementById('importToggleBtn');
+      const importBox = document.getElementById('importBox');
+      const importJsonInput = document.getElementById('importJsonInput');
+      const confirmImportBtn = document.getElementById('confirmImportBtn');
+      const achToast = document.getElementById('achToast');
+      const achToastTitle = document.getElementById('achToastTitle');
+      const gameOverShopBtn = document.getElementById('gameOverShopBtn');
+      const closeShopBtn = document.getElementById('closeShopBtn');
+      const shopOverlay = document.getElementById('shopOverlay');
+      const shopList = document.getElementById('shopList');
+      const shopCoinsVal = document.getElementById('shopCoinsVal');
+      const activeSkinLabel = document.getElementById('activeSkinLabel');
+      const resumeBtn = document.getElementById('resumeBtn');
+      const pauseRestartBtn = document.getElementById('pauseRestartBtn');
+      const playAgainBtn = document.getElementById('playAgainBtn');
+      const changeModeBtn = document.getElementById('changeModeBtn');
+
+      // Game State
+      let status = 'idle'; // 'idle' | 'playing' | 'paused' | 'gameover'
+      let speedMode = 'normal';
+      let wallMode = 'solid'; // 'solid' | 'wrap'
+      let hurdleMode = 'none'; // 'none' | 'hard'
+      let startHardLevel = 1;
+      let currentHardLevel = 1;
+      let hurdles = [];
+      let hurdleSet = new Set();
+      let levelBannerUntil = 0;
+      let levelBannerText = '';
+      let snake = [];
+      let direction = 'RIGHT';
+      let inputQueue = [];
+      let food = { x: 14, y: 10 };
+      let bonus = null; // { x, y, expiresAt }
+      let lifeFruit = null; // { x, y, expiresAt }
+      let coinGroup = null; // { items: [{x, y}], dir: 'row'|'col', expiresAt }
+      let nextCoinSpawnAt = 0;
+      let lastCoinDir = 'col';
+      let lives = 1;
+      let nextLifeScore = 200;
+      let invulnerableUntil = 0;
+      let reviveBannerUntil = 0;
+      let score = 0;
+      let profiles = loadAllProfiles();
+      let currentGamerId = loadActiveGamerId(profiles);
+      let activeProfile = profiles[currentGamerId];
+      let bestScore = activeProfile.bestScore;
+      let coins = activeProfile.coins;
+      let unlockedSkins = activeProfile.unlockedSkins;
+      let equippedSkinId = activeProfile.equippedSkinId;
+      let shopReturnStatus = 'idle';
+      let profileReturnStatus = 'idle';
+      let achToastTimer = null;
+      let particles = [];
+      let rafId = null;
+      let crashTimeoutId = null;
+      let lastTickTime = 0;
+      let boardPx = 400;
+
+      // Audio State (Web Audio API)
+      let audioCtx = null;
+      let isMuted = false;
+
+      function sanitizeGamerId(raw) {
+        const cleaned = String(raw || '').toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 16);
+        return cleaned || 'PLAYER-1';
+      }
+
+      function getTodayDateStr() {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+
+      function makeDefaultProfile(id) {
+        return {
+          gamerId: id,
+          bestScore: 0,
+          coins: 0,
+          unlockedSkins: ['emerald'],
+          equippedSkinId: 'emerald',
+          achievements: [],
+          firstLoginClaimed: false,
+          lastDailyClaimDate: '',
+          stats: { gamesPlayed: 0, applesEaten: 0, coinsCollected: 0, starsCaught: 0, livesSaved: 0 }
+        };
+      }
+
+      function normalizeProfile(p, fallbackId) {
+        const id = sanitizeGamerId(p && p.gamerId ? p.gamerId : fallbackId);
+        const unlocked = Array.isArray(p && p.unlockedSkins) ? p.unlockedSkins.filter(x => SNAKE_SKINS.some(sk => sk.id === x)) : ['emerald'];
+        if (!unlocked.includes('emerald')) unlocked.unshift('emerald');
+        const equipped = SNAKE_SKINS.some(sk => sk.id === (p && p.equippedSkinId)) && unlocked.includes(p.equippedSkinId) ? p.equippedSkinId : 'emerald';
+        const stats = Object.assign({ gamesPlayed: 0, applesEaten: 0, coinsCollected: 0, starsCaught: 0, livesSaved: 0 }, (p && p.stats) || {});
+        const achs = Array.isArray(p && p.achievements) ? p.achievements.filter(a => ACHIEVEMENTS.some(item => item.id === a)) : [];
+        return {
+          gamerId: id,
+          bestScore: Math.max(0, parseInt(p && p.bestScore, 10) || 0),
+          coins: Math.max(0, parseInt(p && p.coins, 10) || 0),
+          unlockedSkins: unlocked,
+          equippedSkinId: equipped,
+          achievements: achs,
+          firstLoginClaimed: Boolean(p && p.firstLoginClaimed),
+          lastDailyClaimDate: String((p && p.lastDailyClaimDate) || ''),
+          stats
+        };
+      }
+
+      function loadAllProfiles() {
+        let store = {};
+        try {
+          const raw = localStorage.getItem(PROFILES_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+              Object.keys(parsed).forEach(k => {
+                const norm = normalizeProfile(parsed[k], k);
+                store[norm.gamerId] = norm;
+              });
+            }
+          }
+        } catch {}
+        if (Object.keys(store).length === 0) {
+          const def = makeDefaultProfile('PLAYER-1');
+          try {
+            def.bestScore = Math.max(0, parseInt(localStorage.getItem(LEGACY_BEST_KEY), 10) || 0);
+            def.coins = Math.max(0, parseInt(localStorage.getItem(LEGACY_COINS_KEY), 10) || 0);
+            const u = JSON.parse(localStorage.getItem(LEGACY_UNLOCKED_KEY) || '["emerald"]');
+            if (Array.isArray(u)) def.unlockedSkins = u;
+            def.equippedSkinId = localStorage.getItem(LEGACY_EQUIPPED_KEY) || 'emerald';
+          } catch {}
+          store['PLAYER-1'] = normalizeProfile(def, 'PLAYER-1');
+        }
+        return store;
+      }
+
+      function loadActiveGamerId(store) {
+        try {
+          const saved = sanitizeGamerId(localStorage.getItem(ACTIVE_ID_KEY));
+          if (store[saved]) return saved;
+        } catch {}
+        return Object.keys(store)[0] || 'PLAYER-1';
+      }
+
+      function persistProfiles() {
+        activeProfile.bestScore = bestScore;
+        activeProfile.coins = coins;
+        activeProfile.unlockedSkins = unlockedSkins;
+        activeProfile.equippedSkinId = equippedSkinId;
+        profiles[currentGamerId] = activeProfile;
+        try {
+          localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+          localStorage.setItem(ACTIVE_ID_KEY, currentGamerId);
+        } catch {}
+      }
+
+      function switchGamerId(rawId) {
+        const id = sanitizeGamerId(rawId);
+        const isNew = !profiles[id];
+        if (isNew) {
+          profiles[id] = makeDefaultProfile(id);
+        }
+        currentGamerId = id;
+        activeProfile = profiles[id];
+        bestScore = activeProfile.bestScore;
+        coins = activeProfile.coins;
+        unlockedSkins = activeProfile.unlockedSkins;
+        equippedSkinId = activeProfile.equippedSkinId;
+        const bonusInfo = claimLoginBonuses(activeProfile);
+        persistProfiles();
+        updateHud();
+        renderShop();
+        renderProfileModal();
+        draw(performance.now());
+        return { isNew, bonusInfo };
+      }
+
+      function saveBestScore(val) {
+        bestScore = val;
+        persistProfiles();
+      }
+
+      function saveCoins(val) {
+        coins = val;
+        persistProfiles();
+      }
+
+      function saveUnlockedSkins(arr) {
+        unlockedSkins = arr;
+        persistProfiles();
+      }
+
+      function saveEquippedSkin(id) {
+        equippedSkinId = id;
+        persistProfiles();
+      }
+
+      function unlockAchievement(id) {
+        if (activeProfile.achievements.includes(id)) return;
+        const ach = ACHIEVEMENTS.find(a => a.id === id);
+        if (!ach) return;
+        activeProfile.achievements.push(id);
+        persistProfiles();
+        playPurchaseSound();
+        achToastTitle.textContent = ach.title;
+        achToast.classList.remove('hidden');
+        clearTimeout(achToastTimer);
+        achToastTimer = setTimeout(() => {
+          achToast.classList.add('hidden');
+        }, 2600);
+      }
+
+      function checkAchievements() {
+        if (activeProfile.stats.applesEaten >= 1) unlockAchievement('first_bite');
+        if (score >= 100) unlockAchievement('century');
+        if (score >= 300) unlockAchievement('high_roller');
+        if (activeProfile.stats.coinsCollected >= 50) unlockAchievement('coin_hunter');
+        if (activeProfile.stats.starsCaught >= 3) unlockAchievement('star_catcher');
+        if (activeProfile.stats.livesSaved >= 1) unlockAchievement('second_wind');
+        if (unlockedSkins.length >= 2) unlockAchievement('collector');
+        if (unlockedSkins.length >= SNAKE_SKINS.length) unlockAchievement('full_squad');
+      }
+
+      function getEquippedSkin() {
+        return SNAKE_SKINS.find(sk => sk.id === equippedSkinId) || SNAKE_SKINS[0];
+      }
+
+      function getCoinMultiplier() {
+        if (equippedSkinId === 'solar') return 2;
+        if (equippedSkinId === 'bumblebee' || equippedSkinId === 'obsidian') return 1.5;
+        if (equippedSkinId === 'prism') return 1.25;
+        return 1;
+      }
+
+      function showBonusToast(title, subtitle) {
+        achToastTitle.textContent = `${title} · ${subtitle}`;
+        achToast.classList.remove('hidden');
+        clearTimeout(achToastTimer);
+        achToastTimer = setTimeout(() => {
+          achToast.classList.add('hidden');
+        }, 3000);
+      }
+
+      function claimLoginBonuses(profile) {
+        const today = getTodayDateStr();
+        let granted = 0;
+        let reason = '';
+        if (!profile.firstLoginClaimed) {
+          profile.firstLoginClaimed = true;
+          profile.lastDailyClaimDate = today;
+          granted = 150;
+          reason = 'Welcome Bonus (+150 Coins)';
+        } else if (profile.lastDailyClaimDate !== today) {
+          profile.lastDailyClaimDate = today;
+          granted = 50;
+          reason = 'Daily Login (+50 Coins)';
+        }
+        if (granted > 0) {
+          profile.coins += granted;
+          coins = profile.coins;
+          persistProfiles();
+          updateHud();
+          showBonusToast(profile.gamerId, reason);
+        }
+        return { granted, reason };
+      }
+
+      function ensureAudio() {
+        if (isMuted) return null;
+        if (!audioCtx) {
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            audioCtx = new AudioContextClass();
+          }
+        }
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+        return audioCtx;
+      }
+
+      function playTone(freq, duration, type = 'sine', volume = 0.08, slideTo = null) {
+        if (isMuted) return;
+        const ac = ensureAudio();
+        if (!ac) return;
+        try {
+          const osc = ac.createOscillator();
+          const gain = ac.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, ac.currentTime);
+          if (slideTo) {
+            osc.frequency.exponentialRampToValueAtTime(slideTo, ac.currentTime + duration);
+          }
+          gain.gain.setValueAtTime(volume, ac.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(ac.destination);
+          osc.start();
+          osc.stop(ac.currentTime + duration);
+        } catch {
+          // Ignore audio errors
+        }
+      }
+
+      function playEatSound() {
+        playTone(520, 0.09, 'triangle', 0.1, 780);
+      }
+
+      function playBonusSound() {
+        playTone(660, 0.1, 'sine', 0.1, 990);
+        setTimeout(() => playTone(880, 0.14, 'sine', 0.09, 1320), 70);
+      }
+
+      function playCoinSound() {
+        playTone(988, 0.06, 'sine', 0.08, 1319);
+      }
+
+      function playPurchaseSound() {
+        playTone(523, 0.08, 'triangle', 0.1, 659);
+        setTimeout(() => playTone(784, 0.12, 'triangle', 0.1, 1046), 70);
+      }
+
+      function playLifeSound() {
+        playTone(587, 0.09, 'sine', 0.1, 880);
+        setTimeout(() => playTone(880, 0.14, 'triangle', 0.1, 1175), 80);
+      }
+
+      function playReviveSound() {
+        playTone(440, 0.12, 'triangle', 0.11, 220);
+        setTimeout(() => playTone(523, 0.18, 'sine', 0.1, 784), 100);
+      }
+
+      function playGameOverSound() {
+        playTone(300, 0.28, 'sawtooth', 0.09, 110);
+      }
+
+      function resizeCanvas() {
+        const rect = boardContainer.getBoundingClientRect();
+        const size = Math.max(200, Math.floor(Math.min(rect.width, rect.height)));
+        const dpr = window.devicePixelRatio || 1;
+        boardPx = size;
+        canvas.width = size * dpr;
+        canvas.height = size * dpr;
+        canvas.style.width = size + 'px';
+        canvas.style.height = size + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        draw(performance.now());
+      }
+
+      function initGame() {
+        snake = [
+          { x: 6, y: 10 },
+          { x: 5, y: 10 },
+          { x: 4, y: 10 }
+        ];
+        direction = 'RIGHT';
+        inputQueue = [];
+        score = 0;
+        currentHardLevel = startHardLevel;
+        applyHurdles(currentHardLevel);
+        levelBannerUntil = 0;
+        lives = (equippedSkinId === 'prism' || equippedSkinId === 'obsidian') ? 2 : 1;
+        nextLifeScore = equippedSkinId === 'cyber_pink' ? 150 : 200;
+        invulnerableUntil = 0;
+        reviveBannerUntil = 0;
+        bonus = null;
+        lifeFruit = null;
+        coinGroup = null;
+        nextCoinSpawnAt = performance.now() + 1800;
+        particles = [];
+        spawnFood();
+        updateHud();
+      }
+
+      function applyHurdles(lvl) {
+        if (hurdleMode === 'hard') {
+          hurdles = buildHardLevel(lvl);
+          hurdleSet = new Set(hurdles.map(h => `${h.x},${h.y}`));
+        } else {
+          hurdles = [];
+          hurdleSet = new Set();
+        }
+      }
+
+      function randomFreeCell() {
+        const occupied = new Set(snake.map(s => `${s.x},${s.y}`));
+        hurdleSet.forEach(k => occupied.add(k));
+        if (food) occupied.add(`${food.x},${food.y}`);
+        if (bonus) occupied.add(`${bonus.x},${bonus.y}`);
+        if (lifeFruit) occupied.add(`${lifeFruit.x},${lifeFruit.y}`);
+        if (coinGroup) {
+          coinGroup.items.forEach(c => occupied.add(`${c.x},${c.y}`));
+        }
+        const free = [];
+        for (let y = 0; y < GRID_SIZE; y++) {
+          for (let x = 0; x < GRID_SIZE; x++) {
+            if (!occupied.has(`${x},${y}`)) {
+              free.push({ x, y });
+            }
+          }
+        }
+        if (free.length === 0) return { x: 0, y: 0 };
+        return free[Math.floor(Math.random() * free.length)];
+      }
+
+      function spawnFood() {
+        food = randomFreeCell();
+      }
+
+      function spawnCoinLine(now) {
+        const occupied = new Set(snake.map(s => `${s.x},${s.y}`));
+        hurdleSet.forEach(k => occupied.add(k));
+        if (food) occupied.add(`${food.x},${food.y}`);
+        if (bonus) occupied.add(`${bonus.x},${bonus.y}`);
+        if (lifeFruit) occupied.add(`${lifeFruit.x},${lifeFruit.y}`);
+
+        const dir = lastCoinDir === 'row' ? 'col' : 'row';
+        lastCoinDir = dir;
+        const candidates = [];
+
+        if (dir === 'row') {
+          for (let y = 0; y < GRID_SIZE; y++) {
+            for (let x = 0; x <= GRID_SIZE - 5; x++) {
+              let ok = true;
+              for (let k = 0; k < 5; k++) {
+                if (occupied.has(`${x + k},${y}`)) { ok = false; break; }
+              }
+              if (ok) {
+                candidates.push([0, 1, 2, 3, 4].map(k => ({ x: x + k, y })));
+              }
+            }
+          }
+        } else {
+          for (let x = 0; x < GRID_SIZE; x++) {
+            for (let y = 0; y <= GRID_SIZE - 5; y++) {
+              let ok = true;
+              for (let k = 0; k < 5; k++) {
+                if (occupied.has(`${x},${y + k}`)) { ok = false; break; }
+              }
+              if (ok) {
+                candidates.push([0, 1, 2, 3, 4].map(k => ({ x, y: y + k })));
+              }
+            }
+          }
+        }
+
+        if (candidates.length > 0) {
+          const items = candidates[Math.floor(Math.random() * candidates.length)];
+          coinGroup = { items, dir, expiresAt: now + 3000 };
+        } else {
+          nextCoinSpawnAt = now + 2000;
+        }
+      }
+
+      function maybeSpawnBonus(now) {
+        if (!bonus && score > 0 && score % 50 === 0 && Math.random() < 0.75) {
+          const pos = randomFreeCell();
+          const dur = equippedSkinId === 'crimson' ? 10500 : 7000;
+          bonus = { x: pos.x, y: pos.y, expiresAt: now + dur, duration: dur };
+        }
+      }
+
+      function maybeSpawnLifeFruit(now) {
+        const stepPts = equippedSkinId === 'cyber_pink' ? 150 : 200;
+        if (!lifeFruit && score >= nextLifeScore) {
+          while (score >= nextLifeScore) {
+            nextLifeScore += stepPts;
+          }
+          const pos = randomFreeCell();
+          const dur = equippedSkinId === 'crimson' ? 13500 : 9000;
+          lifeFruit = { x: pos.x, y: pos.y, expiresAt: now + dur, duration: dur };
+        }
+      }
+
+      function triggerBoardVibrate() {
+        boardContainer.classList.remove('board-vibrating');
+        void boardContainer.offsetWidth;
+        boardContainer.classList.add('board-vibrating');
+        try {
+          if (navigator.vibrate) {
+            navigator.vibrate([90, 40, 120, 40, 150]);
+          }
+        } catch {
+          // Ignore unsupported vibration
+        }
+      }
+
+      function useExtraLife(now) {
+        lives -= 1;
+        activeProfile.stats.livesSaved += 1;
+        checkAchievements();
+        playReviveSound();
+        triggerBoardVibrate();
+        spawnParticles(snake[0].x, snake[0].y, '#22d3ee');
+        const midY = Math.floor(GRID_SIZE / 2);
+        const midX = Math.floor(GRID_SIZE / 2);
+        const len = snake.length;
+        snake = [];
+        for (let i = 0; i < len; i++) {
+          snake.push({ x: (midX - i + GRID_SIZE) % GRID_SIZE, y: midY });
+        }
+        direction = 'RIGHT';
+        inputQueue = [];
+        invulnerableUntil = now + (equippedSkinId === 'shadow' ? 3500 : 2000);
+        reviveBannerUntil = now + 1800;
+        updateHud();
+      }
+
+      function spawnParticles(gx, gy, color) {
+        const cell = boardPx / GRID_SIZE;
+        const cx = (gx + 0.5) * cell;
+        const cy = (gy + 0.5) * cell;
+        for (let i = 0; i < 12; i++) {
+          const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.3;
+          const speed = 1.2 + Math.random() * 2.6;
+          particles.push({
+            x: cx,
+            y: cy,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1,
+            color
+          });
+        }
+      }
+
+      function currentStepMs() {
+        const base = SPEED_MS[speedMode];
+        const reduction = Math.min(35, Math.floor(score / 40) * 3);
+        const raw = Math.max(MIN_STEP_MS, base - reduction);
+        return equippedSkinId === 'frost' ? Math.round(raw * 1.15) : raw;
+      }
+
+      function updateHud() {
+        scoreVal.textContent = score;
+        bestVal.textContent = bestScore;
+        livesVal.textContent = lives;
+        coinsVal.textContent = coins;
+        shopCoinsVal.textContent = coins;
+        gamerIdLabel.textContent = currentGamerId;
+        lengthVal.textContent = snake.length;
+        activeSkinLabel.textContent = getEquippedSkin().name;
+        const speedLabel = speedMode.charAt(0).toUpperCase() + speedMode.slice(1);
+        const wallText = wallMode === 'solid' ? 'Solid' : 'Wrap';
+        const hurdleText = hurdleMode === 'hard' ? ` · Lvl ${currentHardLevel} Hard` : '';
+        modeLabel.textContent = `${speedLabel} · ${wallText}${hurdleText}`;
+      }
+
+      function showProfileMsg(text, isErr = false) {
+        profileMsg.textContent = text;
+        profileMsg.className = `text-[11px] font-medium ${isErr ? 'text-rose-400' : 'text-emerald-400'}`;
+        profileMsg.classList.remove('hidden');
+      }
+
+      function renderProfileModal() {
+        gamerIdInput.value = currentGamerId;
+        savedProfilesList.innerHTML = '';
+        Object.keys(profiles).forEach(id => {
+          const p = profiles[id];
+          const isCurrent = id === currentGamerId;
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = isCurrent
+            ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-cyan-400/20 border border-cyan-400 text-cyan-200'
+            : 'px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 transition';
+          chip.textContent = `${id} · ★${p.bestScore} · ${p.unlockedSkins.length}/${SNAKE_SKINS.length}`;
+          chip.addEventListener('click', () => {
+            switchGamerId(id);
+            showProfileMsg(`Switched to ${id}.`);
+          });
+          savedProfilesList.appendChild(chip);
+        });
+
+        achCountLabel.textContent = `${activeProfile.achievements.length} / ${ACHIEVEMENTS.length}`;
+        achievementsList.innerHTML = '';
+        ACHIEVEMENTS.forEach(ach => {
+          const unlocked = activeProfile.achievements.includes(ach.id);
+          const card = document.createElement('div');
+          card.className = unlocked
+            ? 'p-2.5 rounded-xl bg-amber-400/10 border border-amber-400/40 flex items-start gap-2'
+            : 'p-2.5 rounded-xl bg-slate-900/70 border border-slate-800 flex items-start gap-2 opacity-60';
+          card.innerHTML = `
+            <span class="text-sm leading-none mt-0.5 ${unlocked ? 'text-amber-300' : 'text-slate-600'}">${unlocked ? '★' : '☆'}</span>
+            <div class="min-w-0">
+              <div class="text-xs font-bold ${unlocked ? 'text-white' : 'text-slate-400'}">${ach.title}</div>
+              <div class="text-[10px] text-slate-400 leading-snug">${ach.desc}</div>
+            </div>
+          `;
+          achievementsList.appendChild(card);
+        });
+      }
+
+      function openProfile(returnTo) {
+        if (status === 'playing') togglePause();
+        profileReturnStatus = returnTo;
+        profileMsg.classList.add('hidden');
+        importBox.classList.add('hidden');
+        renderProfileModal();
+        profileOverlay.classList.remove('hidden');
+      }
+
+      function closeProfile() {
+        profileOverlay.classList.add('hidden');
+        if (profileReturnStatus === 'gameover') gameOverOverlay.classList.remove('hidden');
+        else if (profileReturnStatus === 'paused') pauseOverlay.classList.remove('hidden');
+        else if (profileReturnStatus === 'idle') startOverlay.classList.remove('hidden');
+      }
+
+      function renderShop() {
+        shopCoinsVal.textContent = coins;
+        shopList.innerHTML = '';
+        SNAKE_SKINS.forEach(skin => {
+          const unlocked = unlockedSkins.includes(skin.id);
+          const equipped = equippedSkinId === skin.id;
+          const canAfford = coins >= skin.price;
+
+          const card = document.createElement('div');
+          card.className = `flex items-center justify-between gap-3 p-3 rounded-xl border ${
+            equipped
+              ? 'bg-emerald-500/10 border-emerald-500/60'
+              : 'bg-slate-900/90 border-slate-800'
+          }`;
+
+          const left = document.createElement('div');
+          left.className = 'flex items-center gap-3 min-w-0';
+
+          const swatch = document.createElement('div');
+          swatch.className = 'w-9 h-9 rounded-xl shrink-0 border border-white/15 flex overflow-hidden shadow-md';
+          swatch.innerHTML = `<span class="w-1/2 h-full" style="background:${skin.colors[0]}"></span><span class="w-1/2 h-full" style="background:${skin.colors[1]}"></span>`;
+
+          const info = document.createElement('div');
+          info.className = 'min-w-0';
+          info.innerHTML = `<div class="text-sm font-bold text-white truncate">${skin.name}</div><div class="text-[11px] text-slate-400 leading-snug">${skin.perk}</div>`;
+
+          left.appendChild(swatch);
+          left.appendChild(info);
+
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          if (equipped) {
+            btn.textContent = 'Equipped';
+            btn.disabled = true;
+            btn.className = 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+          } else if (unlocked) {
+            btn.textContent = 'Equip';
+            btn.className = 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 transition';
+            btn.addEventListener('click', () => {
+              ensureAudio();
+              equippedSkinId = skin.id;
+              saveEquippedSkin(equippedSkinId);
+              updateHud();
+              renderShop();
+              draw(performance.now());
+            });
+          } else {
+            btn.textContent = `Buy · ${skin.price}`;
+            btn.disabled = !canAfford;
+            btn.className = canAfford
+              ? 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-yellow-400 hover:bg-yellow-300 text-slate-950 transition'
+              : 'shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed';
+            btn.addEventListener('click', () => {
+              if (coins < skin.price) return;
+              ensureAudio();
+              coins -= skin.price;
+              saveCoins(coins);
+              unlockedSkins.push(skin.id);
+              saveUnlockedSkins(unlockedSkins);
+              equippedSkinId = skin.id;
+              saveEquippedSkin(equippedSkinId);
+              playPurchaseSound();
+              checkAchievements();
+              updateHud();
+              renderShop();
+              draw(performance.now());
+            });
+          }
+
+          card.appendChild(left);
+          card.appendChild(btn);
+          shopList.appendChild(card);
+        });
+      }
+
+      function openShop(returnTo) {
+        shopReturnStatus = returnTo;
+        renderShop();
+        shopOverlay.classList.remove('hidden');
+      }
+
+      function closeShop() {
+        shopOverlay.classList.add('hidden');
+        if (shopReturnStatus === 'gameover') {
+          gameOverOverlay.classList.remove('hidden');
+        } else {
+          startOverlay.classList.remove('hidden');
+        }
+      }
+
+      function setStatus(nextStatus) {
+        status = nextStatus;
+        startOverlay.classList.toggle('hidden', status !== 'idle');
+        pauseOverlay.classList.toggle('hidden', status !== 'paused');
+        gameOverOverlay.classList.toggle('hidden', status !== 'gameover');
+
+        pauseBtn.disabled = status === 'idle' || status === 'gameover' || status === 'crashing';
+        pauseIcon.classList.toggle('hidden', status === 'paused');
+        playIcon.classList.toggle('hidden', status !== 'paused');
+      }
+
+      function startGame() {
+        ensureAudio();
+        stopLoop();
+        clearTimeout(crashTimeoutId);
+        crashOverlay.classList.add('hidden');
+        boardContainer.classList.remove('board-vibrating');
+        initGame();
+        setStatus('playing');
+        lastTickTime = performance.now();
+        rafId = requestAnimationFrame(loop);
+      }
+
+      function togglePause() {
+        if (status === 'playing') {
+          setStatus('paused');
+          stopLoop();
+          draw(performance.now());
+        } else if (status === 'paused') {
+          setStatus('playing');
+          lastTickTime = performance.now();
+          rafId = requestAnimationFrame(loop);
+        }
+      }
+
+      function endGame(reasonText) {
+        stopLoop();
+        clearTimeout(crashTimeoutId);
+        playGameOverSound();
+        spawnParticles(snake[0].x, snake[0].y, '#f43f5e');
+        triggerBoardVibrate();
+        setStatus('crashing');
+
+        crashOverlay.classList.remove('hidden');
+        skullPopup.classList.remove('skull-pop');
+        void skullPopup.offsetWidth;
+        skullPopup.classList.add('skull-pop');
+
+        const crashEnd = performance.now() + 950;
+        function crashRender(now) {
+          if (status !== 'crashing') return;
+          draw(now);
+          if (now < crashEnd) {
+            rafId = requestAnimationFrame(crashRender);
+          }
+        }
+        rafId = requestAnimationFrame(crashRender);
+
+        crashTimeoutId = setTimeout(() => {
+          stopLoop();
+          crashOverlay.classList.add('hidden');
+          boardContainer.classList.remove('board-vibrating');
+          let isNewBest = false;
+          if (score > bestScore) {
+            bestScore = score;
+            saveBestScore(bestScore);
+            isNewBest = true;
+          }
+          updateHud();
+          newBestBadge.classList.toggle('hidden', !isNewBest);
+          deathReason.textContent = reasonText;
+          finalScoreVal.textContent = score;
+          finalLengthVal.textContent = snake.length;
+          setStatus('gameover');
+          draw(performance.now());
+        }, 950);
+      }
+
+      function stopLoop() {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
+      }
+
+      function queueDirection(nextDir) {
+        if (status !== 'playing') return;
+        const lastPlanned = inputQueue.length > 0 ? inputQueue[inputQueue.length - 1] : direction;
+        if (nextDir === lastPlanned || OPPOSITE[nextDir] === lastPlanned) return;
+        if (inputQueue.length < 3) {
+          inputQueue.push(nextDir);
+        }
+      }
+
+      function step(now) {
+        if (inputQueue.length > 0) {
+          direction = inputQueue.shift();
+        }
+
+        const vec = DIRS[direction];
+        let nx = snake[0].x + vec.x;
+        let ny = snake[0].y + vec.y;
+
+        const isInvulnerable = now < invulnerableUntil;
+
+        if (wallMode === 'wrap' || isInvulnerable) {
+          nx = (nx + GRID_SIZE) % GRID_SIZE;
+          ny = (ny + GRID_SIZE) % GRID_SIZE;
+        } else {
+          if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) {
+            if (lives > 1) {
+              useExtraLife(now);
+              return;
+            }
+            endGame('You hit the wall.');
+            return;
+          }
+        }
+
+        // Coin spawning / expiration
+        if (!coinGroup && now >= nextCoinSpawnAt) {
+          spawnCoinLine(now);
+        }
+        if (coinGroup && now >= coinGroup.expiresAt) {
+          coinGroup = null;
+          nextCoinSpawnAt = now + 2600 + Math.random() * 1400;
+        }
+
+        // Golden Midas pulls nearby coins within 2 cells toward the snake's head
+        if (equippedSkinId === 'coin_magnet' && coinGroup) {
+          coinGroup.items.forEach(c => {
+            const dist = Math.abs(c.x - nx) + Math.abs(c.y - ny);
+            if (dist > 0 && dist <= 2) {
+              if (c.x > nx) c.x -= 1;
+              else if (c.x < nx) c.x += 1;
+              if (c.y > ny) c.y -= 1;
+              else if (c.y < ny) c.y += 1;
+            }
+          });
+        }
+
+        // Cyber Magnet (Blue & Green) pulls star if head's direction is on star's row or column
+        if (equippedSkinId === 'magnet' && bonus) {
+          const isHoriz = direction === 'LEFT' || direction === 'RIGHT';
+          const isVert = direction === 'UP' || direction === 'DOWN';
+          if (isHoriz && bonus.y === ny) {
+            if (bonus.x > nx) bonus.x -= 1;
+            else if (bonus.x < nx) bonus.x += 1;
+          } else if (isVert && bonus.x === nx) {
+            if (bonus.y > ny) bonus.y -= 1;
+            else if (bonus.y < ny) bonus.y += 1;
+          }
+        }
+
+        const willEatFood = nx === food.x && ny === food.y;
+        const willEatBonus = bonus && nx === bonus.x && ny === bonus.y;
+        const willEatLife = lifeFruit && nx === lifeFruit.x && ny === lifeFruit.y;
+        const bodyToCheck = willEatFood ? snake : snake.slice(0, -1);
+
+        if (!isInvulnerable && hurdleSet.has(`${nx},${ny}`)) {
+          if (lives > 1) {
+            useExtraLife(now);
+            return;
+          }
+          endGame(`You hit a Level ${currentHardLevel} Hard hurdle.`);
+          return;
+        }
+
+        if (!isInvulnerable && bodyToCheck.some(seg => seg.x === nx && seg.y === ny)) {
+          if (lives > 1) {
+            useExtraLife(now);
+            return;
+          }
+          endGame('You ran into yourself.');
+          return;
+        }
+
+        snake.unshift({ x: nx, y: ny });
+
+        if (willEatFood) {
+          score += (equippedSkinId === 'crimson' || equippedSkinId === 'obsidian') ? 15 : 10;
+          activeProfile.stats.applesEaten += 1;
+          playEatSound();
+          spawnParticles(food.x, food.y, '#f43f5e');
+          spawnFood();
+          maybeSpawnBonus(now);
+          maybeSpawnLifeFruit(now);
+          checkAchievements();
+        } else {
+          snake.pop();
+        }
+
+        if (coinGroup) {
+          const coinIdx = coinGroup.items.findIndex(c => c.x === nx && c.y === ny);
+          if (coinIdx !== -1) {
+            coinGroup.items.splice(coinIdx, 1);
+            const earned = Math.round(2 * getCoinMultiplier());
+            coins += earned;
+            activeProfile.stats.coinsCollected += earned;
+            saveCoins(coins);
+            checkAchievements();
+            playCoinSound();
+            spawnParticles(nx, ny, '#facc15');
+            if (coinGroup.items.length === 0) {
+              coinGroup = null;
+              nextCoinSpawnAt = now + 2600 + Math.random() * 1400;
+            }
+          }
+        }
+
+        if (willEatBonus) {
+          score += equippedSkinId === 'viper' ? 80 : 50;
+          activeProfile.stats.starsCaught += 1;
+          playBonusSound();
+          spawnParticles(bonus.x, bonus.y, '#fbbf24');
+          bonus = null;
+          maybeSpawnLifeFruit(now);
+          checkAchievements();
+        }
+
+        if (willEatLife) {
+          lives += 1;
+          playLifeSound();
+          spawnParticles(lifeFruit.x, lifeFruit.y, '#ec4899');
+          lifeFruit = null;
+        }
+
+        if (bonus && now >= bonus.expiresAt) {
+          bonus = null;
+        }
+
+        if (lifeFruit && now >= lifeFruit.expiresAt) {
+          lifeFruit = null;
+        }
+
+        if (hurdleMode === 'hard') {
+          const targetLvl = Math.min(5, startHardLevel + Math.floor(score / 120));
+          if (targetLvl > currentHardLevel) {
+            currentHardLevel = targetLvl;
+            applyHurdles(currentHardLevel);
+            if (food && hurdleSet.has(`${food.x},${food.y}`)) spawnFood();
+            invulnerableUntil = Math.max(invulnerableUntil, now + (equippedSkinId === 'shadow' ? 3500 : 1500));
+            levelBannerText = `LEVEL ${currentHardLevel} HARD!`;
+            levelBannerUntil = now + 2000;
+            playPurchaseSound();
+          }
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          saveBestScore(bestScore);
+        }
+        updateHud();
+      }
+
+      function loop(now) {
+        if (status !== 'playing') return;
+        const interval = currentStepMs();
+        if (now - lastTickTime >= interval) {
+          lastTickTime = now;
+          step(now);
+          if (status !== 'playing') return;
+        }
+        draw(now);
+        rafId = requestAnimationFrame(loop);
+      }
+
+      function drawRoundedRect(x, y, w, h, r) {
+        const radius = Math.min(r, w / 2, h / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.arcTo(x + w, y, x + w, y + h, radius);
+        ctx.arcTo(x + w, y + h, x, y + h, radius);
+        ctx.arcTo(x, y + h, x, y, radius);
+        ctx.arcTo(x, y, x + w, y, radius);
+        ctx.closePath();
+      }
+
+      function draw(now) {
+        const cell = boardPx / GRID_SIZE;
+        ctx.clearRect(0, 0, boardPx, boardPx);
+
+        // Background
+        ctx.fillStyle = '#0b1120';
+        ctx.fillRect(0, 0, boardPx, boardPx);
+
+        // Subtle grid
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.06)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 1; i < GRID_SIZE; i++) {
+          const p = Math.round(i * cell) + 0.5;
+          ctx.moveTo(p, 0);
+          ctx.lineTo(p, boardPx);
+          ctx.moveTo(0, p);
+          ctx.lineTo(boardPx, p);
+        }
+        ctx.stroke();
+
+        // Hurdles (Hard Mode neon barriers)
+        if (hurdles.length > 0) {
+          hurdles.forEach(h => {
+            const pad = cell * 0.08;
+            const x = h.x * cell + pad;
+            const y = h.y * cell + pad;
+            const size = cell - pad * 2;
+            ctx.save();
+            ctx.shadowColor = 'rgba(249, 115, 22, 0.7)';
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = '#ea580c';
+            drawRoundedRect(x, y, size, size, size * 0.22);
+            ctx.fill();
+            ctx.strokeStyle = '#fdba74';
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+            ctx.restore();
+          });
+        }
+
+        // Food (pulsing apple)
+        if (food) {
+          const pulse = 1 + Math.sin(now * 0.008) * 0.08;
+          const cx = (food.x + 0.5) * cell;
+          const cy = (food.y + 0.5) * cell;
+          const r = cell * 0.36 * pulse;
+
+          ctx.save();
+          ctx.shadowColor = 'rgba(244, 63, 94, 0.65)';
+          ctx.shadowBlur = 12;
+          ctx.fillStyle = '#f43f5e';
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          // Small leaf
+          ctx.fillStyle = '#4ade80';
+          ctx.beginPath();
+          ctx.ellipse(cx + r * 0.25, cy - r * 0.85, r * 0.28, r * 0.14, -0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Coins (5 in a row or column)
+        if (coinGroup) {
+          const timeLeft = Math.max(0, coinGroup.expiresAt - now);
+          const fadeAlpha = timeLeft < 500 ? timeLeft / 500 : 1;
+          coinGroup.items.forEach((c, idx) => {
+            const cx = (c.x + 0.5) * cell;
+            const cy = (c.y + 0.5) * cell;
+            const shimmer = 0.85 + Math.sin(now * 0.012 + idx * 0.6) * 0.15;
+            const rx = cell * 0.3 * shimmer;
+            const ry = cell * 0.34;
+
+            ctx.save();
+            ctx.globalAlpha = fadeAlpha;
+            ctx.shadowColor = 'rgba(250, 204, 21, 0.85)';
+            ctx.shadowBlur = 12;
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#fef08a';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, rx * 0.55, ry * 0.55, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          });
+        }
+
+        // Magnet Tractor Beam when Cyber Magnet aligns with Star
+        if (equippedSkinId === 'magnet' && bonus && snake.length > 0) {
+          const head = snake[0];
+          const isHoriz = direction === 'LEFT' || direction === 'RIGHT';
+          const isVert = direction === 'UP' || direction === 'DOWN';
+          if ((isHoriz && bonus.y === head.y) || (isVert && bonus.x === head.x)) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo((head.x + 0.5) * cell, (head.y + 0.5) * cell);
+            ctx.lineTo((bonus.x + 0.5) * cell, (bonus.y + 0.5) * cell);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+
+        // Bonus Star
+        if (bonus) {
+          const cx = (bonus.x + 0.5) * cell;
+          const cy = (bonus.y + 0.5) * cell;
+          const outer = cell * 0.4;
+          const inner = cell * 0.18;
+          const rot = now * 0.003;
+
+          ctx.save();
+          ctx.shadowColor = 'rgba(251, 191, 36, 0.8)';
+          ctx.shadowBlur = 14;
+          ctx.fillStyle = '#fbbf24';
+          ctx.beginPath();
+          for (let i = 0; i < 10; i++) {
+            const rad = i % 2 === 0 ? outer : inner;
+            const a = rot + (i * Math.PI) / 5;
+            const px = cx + Math.cos(a) * rad;
+            const py = cy + Math.sin(a) * rad;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // Extra Life Fruit (pulsing neon heart)
+        if (lifeFruit) {
+          const cx = (lifeFruit.x + 0.5) * cell;
+          const cy = (lifeFruit.y + 0.5) * cell;
+          const pulse = 1 + Math.sin(now * 0.01) * 0.1;
+          const s = cell * 0.34 * pulse;
+
+          ctx.save();
+          ctx.shadowColor = 'rgba(236, 72, 153, 0.9)';
+          ctx.shadowBlur = 16;
+          ctx.fillStyle = '#ec4899';
+          ctx.beginPath();
+          ctx.moveTo(cx, cy + s * 0.75);
+          ctx.bezierCurveTo(cx - s * 1.2, cy - s * 0.05, cx - s * 0.65, cy - s * 1.05, cx, cy - s * 0.35);
+          ctx.bezierCurveTo(cx + s * 0.65, cy - s * 1.05, cx + s * 1.2, cy - s * 0.05, cx, cy + s * 0.75);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+
+          // Countdown ring
+          const remaining = Math.max(0, (lifeFruit.expiresAt - now) / (lifeFruit.duration || 9000));
+          ctx.strokeStyle = 'rgba(34, 211, 238, 0.75)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, cell * 0.45, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * remaining);
+          ctx.stroke();
+        }
+
+        // Snake
+        const isInvulnBlink = now < invulnerableUntil && Math.floor(now / 110) % 2 === 0;
+        for (let i = snake.length - 1; i >= 0; i--) {
+          const seg = snake[i];
+          const isHead = i === 0;
+          const pad = isHead ? cell * 0.07 : cell * 0.1;
+          const x = seg.x * cell + pad;
+          const y = seg.y * cell + pad;
+          const size = cell - pad * 2;
+          const t = 1 - i / Math.max(snake.length, 1);
+
+          ctx.save();
+          if (isInvulnBlink) {
+            ctx.globalAlpha = 0.45;
+          }
+          if (isHead) {
+            let headColor = '#34d399';
+            let headGlow = 'rgba(16, 185, 129, 0.55)';
+            if (equippedSkinId === 'bumblebee') { headColor = '#facc15'; headGlow = 'rgba(250, 204, 21, 0.7)'; }
+            else if (equippedSkinId === 'frost') { headColor = '#e0f2fe'; headGlow = 'rgba(186, 230, 253, 0.8)'; }
+            else if (equippedSkinId === 'magnet') { headColor = '#38bdf8'; headGlow = 'rgba(56, 189, 248, 0.75)'; }
+            else if (equippedSkinId === 'coin_magnet') { headColor = '#fbbf24'; headGlow = 'rgba(251, 191, 36, 0.8)'; }
+            else if (equippedSkinId === 'crimson') { headColor = '#f43f5e'; headGlow = 'rgba(244, 63, 94, 0.75)'; }
+            else if (equippedSkinId === 'shadow') { headColor = '#818cf8'; headGlow = 'rgba(129, 140, 248, 0.75)'; }
+            else if (equippedSkinId === 'viper') { headColor = '#a3e635'; headGlow = 'rgba(163, 230, 53, 0.8)'; }
+            else if (equippedSkinId === 'solar') { headColor = '#fb923c'; headGlow = 'rgba(251, 146, 60, 0.8)'; }
+            else if (equippedSkinId === 'cyber_pink') { headColor = '#f472b6'; headGlow = 'rgba(244, 114, 182, 0.8)'; }
+            else if (equippedSkinId === 'obsidian') { headColor = '#22d3ee'; headGlow = 'rgba(34, 211, 238, 0.85)'; }
+            else if (equippedSkinId === 'prism') {
+              const hue = Math.round((now * 0.18) % 360);
+              headColor = `hsl(${hue}, 90%, 62%)`;
+              headGlow = `hsla(${hue}, 90%, 60%, 0.8)`;
+            }
+            ctx.shadowColor = now < invulnerableUntil ? 'rgba(34, 211, 238, 0.85)' : headGlow;
+            ctx.shadowBlur = 12;
+            ctx.fillStyle = now < invulnerableUntil ? '#22d3ee' : headColor;
+          } else {
+            if (equippedSkinId === 'bumblebee') {
+              ctx.fillStyle = i % 2 === 1 ? '#18181b' : '#facc15';
+            } else if (equippedSkinId === 'frost') {
+              ctx.fillStyle = i % 2 === 1 ? '#38bdf8' : '#e0f2fe';
+            } else if (equippedSkinId === 'magnet') {
+              ctx.fillStyle = i % 2 === 1 ? '#22c55e' : '#0ea5e9';
+            } else if (equippedSkinId === 'coin_magnet') {
+              ctx.fillStyle = i % 2 === 1 ? '#b45309' : '#fbbf24';
+            } else if (equippedSkinId === 'crimson') {
+              const r = Math.round(147 + t * 90);
+              const b = Math.round(234 - t * 130);
+              ctx.fillStyle = `rgb(${r}, 35, ${b})`;
+            } else if (equippedSkinId === 'shadow') {
+              ctx.fillStyle = i % 2 === 1 ? '#312e81' : '#6366f1';
+            } else if (equippedSkinId === 'viper') {
+              ctx.fillStyle = i % 2 === 1 ? '#7e22ce' : '#a3e635';
+            } else if (equippedSkinId === 'solar') {
+              ctx.fillStyle = i % 2 === 1 ? '#ea580c' : '#facc15';
+            } else if (equippedSkinId === 'cyber_pink') {
+              ctx.fillStyle = i % 2 === 1 ? '#22d3ee' : '#f472b6';
+            } else if (equippedSkinId === 'obsidian') {
+              ctx.fillStyle = i % 2 === 1 ? '#0f172a' : '#06b6d4';
+            } else if (equippedSkinId === 'prism') {
+              const hue = Math.round((now * 0.18 + i * 24) % 360);
+              ctx.fillStyle = `hsl(${hue}, 88%, 58%)`;
+            } else {
+              const g = Math.round(130 + t * 80);
+              ctx.fillStyle = `rgb(16, ${g}, 115)`;
+            }
+          }
+          drawRoundedRect(x, y, size, size, isHead ? size * 0.35 : size * 0.28);
+          ctx.fill();
+          if (equippedSkinId === 'bumblebee' && !isHead && i % 2 === 1) {
+            ctx.strokeStyle = 'rgba(250, 204, 21, 0.65)';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+          }
+          ctx.restore();
+
+          // Eyes on head
+          if (isHead) {
+            const cx = seg.x * cell + cell * 0.5;
+            const cy = seg.y * cell + cell * 0.5;
+            const eyeOffsetFwd = cell * 0.16;
+            const eyeOffsetSide = cell * 0.17;
+            const vec = DIRS[direction];
+            const perp = { x: -vec.y, y: vec.x };
+
+            const e1x = cx + vec.x * eyeOffsetFwd + perp.x * eyeOffsetSide;
+            const e1y = cy + vec.y * eyeOffsetFwd + perp.y * eyeOffsetSide;
+            const e2x = cx + vec.x * eyeOffsetFwd - perp.x * eyeOffsetSide;
+            const e2y = cy + vec.y * eyeOffsetFwd - perp.y * eyeOffsetSide;
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(e1x, e1y, cell * 0.075, 0, Math.PI * 2);
+            ctx.arc(e2x, e2y, cell * 0.075, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.life -= 0.05;
+          if (p.life <= 0) {
+            particles.splice(i, 1);
+            continue;
+          }
+          ctx.globalAlpha = p.life;
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+
+        // Level Up Banner
+        if (now < levelBannerUntil) {
+          ctx.save();
+          ctx.font = '800 13px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = 'rgba(251, 146, 60, 0.98)';
+          ctx.shadowColor = 'rgba(249, 115, 22, 0.9)';
+          ctx.shadowBlur = 12;
+          ctx.fillText(levelBannerText, boardPx / 2, 24);
+          ctx.restore();
+        }
+
+        // Revive Banner
+        if (now < reviveBannerUntil) {
+          ctx.save();
+          ctx.font = '700 13px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = 'rgba(34, 211, 238, 0.95)';
+          ctx.shadowColor = 'rgba(34, 211, 238, 0.8)';
+          ctx.shadowBlur = 10;
+          ctx.fillText('EXTRA LIFE USED!', boardPx / 2, 24);
+          ctx.restore();
+        }
+      }
+
+      // Keyboard input
+      window.addEventListener('keydown', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+        const key = e.key;
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(key)) {
+          e.preventDefault();
+        }
+
+        if (key === 'ArrowUp' || key === 'w' || key === 'W') queueDirection('UP');
+        else if (key === 'ArrowDown' || key === 's' || key === 'S') queueDirection('DOWN');
+        else if (key === 'ArrowLeft' || key === 'a' || key === 'A') queueDirection('LEFT');
+        else if (key === 'ArrowRight' || key === 'd' || key === 'D') queueDirection('RIGHT');
+        else if (key === 'p' || key === 'P' || key === ' ') {
+          if (status === 'playing' || status === 'paused') {
+            togglePause();
+          } else if (status === 'idle' || status === 'gameover') {
+            startGame();
+          }
+        } else if (key === 'Enter' && (status === 'idle' || status === 'gameover')) {
+          startGame();
+        }
+      });
+
+      // Touch swipe on canvas
+      let touchStart = null;
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0) {
+          touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+      }, { passive: true });
+
+      canvas.addEventListener('touchmove', (e) => {
+        if (!touchStart || status !== 'playing' || e.touches.length === 0) return;
+        const dx = e.touches[0].clientX - touchStart.x;
+        const dy = e.touches[0].clientY - touchStart.y;
+        if (Math.hypot(dx, dy) < 22) return;
+        if (Math.abs(dx) > Math.abs(dy)) {
+          queueDirection(dx > 0 ? 'RIGHT' : 'LEFT');
+        } else {
+          queueDirection(dy > 0 ? 'DOWN' : 'UP');
+        }
+        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }, { passive: true });
+
+      // On-screen D-pad
+      document.querySelectorAll('.dpad-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          ensureAudio();
+          queueDirection(btn.dataset.dir);
+        });
+      });
+
+      // Mode & Speed selectors
+      document.querySelectorAll('.speed-opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          speedMode = btn.dataset.speed;
+          document.querySelectorAll('.speed-opt').forEach(b => {
+            const active = b.dataset.speed === speedMode;
+            b.className = active
+              ? 'speed-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-emerald-500 bg-emerald-500/20 text-emerald-300 transition'
+              : 'speed-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition';
+          });
+          updateHud();
+        });
+      });
+
+      document.querySelectorAll('.hurdle-opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          hurdleMode = btn.dataset.hurdle;
+          document.querySelectorAll('.hurdle-opt').forEach(b => {
+            const active = b.dataset.hurdle === hurdleMode;
+            b.className = active
+              ? (hurdleMode === 'hard'
+                  ? 'hurdle-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-rose-500 bg-rose-500/20 text-rose-300 transition'
+                  : 'hurdle-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-emerald-500 bg-emerald-500/20 text-emerald-300 transition')
+              : 'hurdle-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition';
+          });
+          hardLevelPicker.classList.toggle('hidden', hurdleMode !== 'hard');
+          applyHurdles(startHardLevel);
+          updateHud();
+          draw(performance.now());
+        });
+      });
+
+      document.querySelectorAll('.hard-lvl-opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          startHardLevel = parseInt(btn.dataset.level, 10) || 1;
+          currentHardLevel = startHardLevel;
+          document.querySelectorAll('.hard-lvl-opt').forEach(b => {
+            const active = parseInt(b.dataset.level, 10) === startHardLevel;
+            b.className = active
+              ? 'hard-lvl-opt py-1 rounded-md text-[11px] font-bold border border-rose-500 bg-rose-500/25 text-rose-200 transition'
+              : 'hard-lvl-opt py-1 rounded-md text-[11px] font-bold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition';
+          });
+          applyHurdles(startHardLevel);
+          updateHud();
+          draw(performance.now());
+        });
+      });
+
+      document.querySelectorAll('.wall-opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          wallMode = btn.dataset.walls;
+          document.querySelectorAll('.wall-opt').forEach(b => {
+            const active = b.dataset.walls === wallMode;
+            b.className = active
+              ? 'wall-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-emerald-500 bg-emerald-500/20 text-emerald-300 transition'
+              : 'wall-opt py-1.5 px-2 rounded-lg text-xs font-semibold border border-slate-700 bg-slate-800/80 text-slate-300 hover:bg-slate-700 transition';
+          });
+          updateHud();
+        });
+      });
+
+      // Buttons
+      startBtn.addEventListener('click', startGame);
+      openShopBtn.addEventListener('click', () => openShop('idle'));
+      gameOverShopBtn.addEventListener('click', () => openShop('gameover'));
+      closeShopBtn.addEventListener('click', closeShop);
+
+      gamerIdBtn.addEventListener('click', () => openProfile(status));
+      startProfileBtn.addEventListener('click', () => openProfile('idle'));
+      closeProfileBtn.addEventListener('click', closeProfile);
+
+      loginGamerBtn.addEventListener('click', () => {
+        const raw = gamerIdInput.value.trim();
+        if (!raw) {
+          showProfileMsg('Enter a Gamer ID first.', true);
+          return;
+        }
+        const { isNew, bonusInfo } = switchGamerId(raw);
+        if (bonusInfo && bonusInfo.granted > 0) {
+          showProfileMsg(`${isNew ? 'Created' : 'Loaded'} ${currentGamerId} · ${bonusInfo.reason}!`);
+        } else {
+          showProfileMsg(isNew ? `Created new profile ${currentGamerId}!` : `Welcome back, ${currentGamerId}!`);
+        }
+      });
+
+      exportProfileBtn.addEventListener('click', () => {
+        const payload = JSON.stringify(activeProfile, null, 2);
+        let copied = false;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(payload).catch(() => {});
+            copied = true;
+          }
+        } catch {}
+        if (!copied) {
+          const ta = document.createElement('textarea');
+          ta.value = payload;
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); copied = true; } catch {}
+          document.body.removeChild(ta);
+        }
+        showProfileMsg(`Copied ${currentGamerId} backup JSON!`);
+      });
+
+      importToggleBtn.addEventListener('click', () => {
+        importBox.classList.toggle('hidden');
+      });
+
+      confirmImportBtn.addEventListener('click', () => {
+        try {
+          const parsed = JSON.parse(importJsonInput.value.trim());
+          const norm = normalizeProfile(parsed, parsed.gamerId || 'IMPORTED');
+          profiles[norm.gamerId] = norm;
+          switchGamerId(norm.gamerId);
+          importBox.classList.add('hidden');
+          importJsonInput.value = '';
+          showProfileMsg(`Restored profile ${norm.gamerId}!`);
+        } catch {
+          showProfileMsg('Invalid JSON backup.', true);
+        }
+      });
+      playAgainBtn.addEventListener('click', startGame);
+      pauseRestartBtn.addEventListener('click', startGame);
+      pauseBtn.addEventListener('click', togglePause);
+      resumeBtn.addEventListener('click', togglePause);
+      changeModeBtn.addEventListener('click', () => {
+        clearTimeout(crashTimeoutId);
+        crashOverlay.classList.add('hidden');
+        boardContainer.classList.remove('board-vibrating');
+        initGame();
+        setStatus('idle');
+        draw(performance.now());
+      });
+
+      muteBtn.addEventListener('click', () => {
+        isMuted = !isMuted;
+        soundOnIcon.classList.toggle('hidden', isMuted);
+        soundOffIcon.classList.toggle('hidden', !isMuted);
+        if (!isMuted) ensureAudio();
+      });
+
+      window.addEventListener('resize', resizeCanvas);
+
+      window.onload = () => {
+        claimLoginBonuses(activeProfile);
+        initGame();
+        setStatus('idle');
+        resizeCanvas();
+      };
+    })();
+  </script>
+</body>
+</html>
